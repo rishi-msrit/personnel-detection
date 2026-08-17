@@ -1,198 +1,117 @@
-# RealSense D415 Personnel Detection, Depth Motion Estimation & Telemetry Analytics Platform
+# Personnel Detection and Telemetry Analytics System
 
-A high-performance, real-time computer vision and physical security telemetry system engineered for **Intel RealSense D415 (RGB-D)** cameras. The platform integrates hardware-level sensor flicker suppression, dual-stream motion tracking, YOLOv8 AI object detection with 3D spatial depth estimation, Fast Fourier Transform (FFT) frequency analysis, and an interactive Flask telemetry dashboard featuring real-time energy profiling and pipeline latency decomposition.
+A real-time computer vision system built for Intel RealSense D415 (RGB-D) cameras. It handles sensor flicker suppression, motion tracking, YOLOv8 object detection with 3D depth measurement, FFT-based frequency analysis for ambient noise, and a Flask dashboard for live monitoring and performance telemetry.
 
----
+## Key Features
 
-## 🌟 Key System Capabilities
+- Dual-Stream Alignment: Synchronized 640x480 at 30 FPS depth (Z16) and color (BGR8) streams aligned to a single viewport.
+- Sensor Noise and Flicker Suppression: Manual exposure control and integration window matching to reduce 50 Hz / 60 Hz ambient lighting flicker on IR depth sensors.
+- Motion Detection: Depth-differencing (millimeter thresholding) and RGB MOG2 background subtraction.
+- Personnel Detection with Depth: YOLOv8 object detection combined with median depth calculation to estimate distance to detected objects.
+- Object Tracking and Direction: Centroid tracking across 8 compass directions with velocity smoothing and hysteresis filtering.
+- Frequency Analysis: Fast Fourier Transform (FFT) analysis on IR and RGB streams to identify flickering frequencies from artificial lights.
+- Web Dashboard: Flask web interface streaming live camera views, CPU/GPU power estimates, frame latency breakdown, and system performance stats.
+- CSV Logging: Asynchronous background telemetry logging to save session metrics to CSV files without affecting camera frame rates.
 
-- **Dual-Stream RGB-D Alignment**: Synchronized 640x480 @ 30 FPS depth ($Z16$) and color ($BGR8$) alignment sharing a unified viewport using `pyrealsense2`.
-- **Flicker & Ambient Noise Suppression (`DepthFlickerSuppressor`)**: Hardware-level auto-exposure disabling and manual integration window calibration to eliminate $50\text{ Hz} / 60\text{ Hz}$ AC mains ambient light flicker on raw IR depth sensors using Exponential Moving Average (EMA) smoothing.
-- **Dual-Domain Motion Engine**:
-  - **Depth Motion Detection**: Absolute millimeter-level spatial depth differencing ($|Z_{\text{curr}} - Z_{\text{bg}}| > \text{threshold}$) immune to shadows and lighting changes.
-  - **RGB Motion Subtraction**: Adaptive MOG2 Gaussian background modeling with morphological opening/closing and shadow rejection.
-- **YOLOv8 AI Personnel Detection & 3D Depth Mapping**: Real-time object detection powered by YOLOv8n paired with bounding-box spatial median depth extraction ($Z_{\text{meters}}$) for accurate distance estimation.
-- **Direction & Trajectory Tracking**: 8-compass direction tracking (Up, Down, Left, Right, Diagonals) with exponential velocity smoothing ($\alpha = 0.22 - 0.35$) and hysteresis state filtering to prevent direction jitter.
-- **Spectral Frequency Analysis (FFT)**: Temporal Fast Fourier Transform analysis on IR and RGB intensity series to isolate ambient lighting harmonics (100 Hz / 120 Hz) and generate high-resolution frequency spectrum plots.
-- **Web Telemetry & Power Profiling Dashboard**: Real-time browser GUI (`http://localhost:5000`) visualizing live MJPEG video streams, CPU/GPU TDP wattage consumption, energy per frame ($\text{mJ/frame}$), energy per object ($\text{mJ/object}$), stage-by-stage latency breakdowns, and system efficiency metrics.
-- **Asynchronous Telemetry Logging**: Multithreaded queue-based CSV logger capturing 40+ system metrics per second without blocking camera throughput.
-
----
-
-## 🏗 System Architecture
+## System Architecture
 
 ```text
-                               ┌─────────────────────────────────────────┐
-                               │  Intel RealSense D415 Depth Camera      │
-                               │  (Aligned RGB Stream + Depth Stream)     │
-                               └────────────────────┬────────────────────┘
-                                                    │
-                        ┌───────────────────────────┴───────────────────────────┐
-                        ▼                                                       ▼
-      ┌───────────────────────────────────┐                   ┌───────────────────────────────────┐
-      │  Raw IR / Depth Sensor Pipeline   │                   │        RGB Frame Processing       │
-      │  - Exposure Flicker Suppression   │                   │  - MOG2 Background Subtraction    │
-      │  - Millimeter Depth Differencing  │                   │  - Contour Tracking               │
-      └─────────────────┬─────────────────┘                   └─────────────────┬─────────────────┘
-                        │                                                       │
-                        └───────────────────────────┬───────────────────────────┘
-                                                    │
-                                                    ▼
-                               ┌─────────────────────────────────────────┐
-                               │   YOLOv8 AI Personnel Detection Engine  │
-                               │   - Object Bounding Box Estimation       │
-                               │   - 3D Depth Median Query (Z-distance)  │
-                               │   - Direction Vector & Centroid Tracking │
-                               └────────────────────┬────────────────────┘
-                                                    │
-                        ┌───────────────────────────┼───────────────────────────┐
-                        ▼                           ▼                           ▼
-       ┌─────────────────────────┐     ┌─────────────────────────┐     ┌─────────────────────────┐
-       │   Spectral FFT Engine   │     │  Web Telemetry Server   │     │   Async CSV Telemetry   │
-       │  (Flicker Plots & FFT)  │     │ (Flask Live Dashboard)  │     │   (Session Logs Queue)  │
-       └─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘
+Input (Intel RealSense D415 RGB-D Camera)
+  │
+  ├── Depth Processing (Exposure calibration, depth difference filtering)
+  ├── RGB Processing (MOG2 background subtraction)
+  │
+  └── YOLOv8 Detection Engine (Bounding boxes, median depth calculation, centroid tracking)
+        │
+        ├── Spectral FFT Engine (Flicker detection and plot generation)
+        ├── Web Dashboard (Flask web server at http://localhost:5000)
+        └── Telemetry Logger (Background CSV output)
 ```
 
----
+## Sensor Flicker Suppression and Frequency Analysis
 
-## 🔬 Hardware Sensor Calibration & Frequency Analysis
+Fluorescent and LED lighting flicker at 100 Hz or 120 Hz depending on AC mains frequency. Since the Intel RealSense D415 uses active IR projection and dual IR sensors, ambient lighting flicker causes temporal noise in raw depth data.
 
-Artificial room lighting (fluorescent ballast, LED drivers) creates subtle high-frequency brightness oscillations driven by $50\text{ Hz}$ or $60\text{ Hz}$ power grids ($100\text{ Hz} / 120\text{ Hz}$ optical harmonics). Because Intel RealSense D415 depth cameras use active infrared projection and dual IR sensors, ambient flicker distorts raw depth readings.
-
-### 1. Exposure-Based Flicker Suppression (`DepthFlickerSuppressor`)
-- **Mechanism**: Auto-exposure is programmatically disabled on the RealSense depth sensor (`rs.option.enable_auto_exposure = 0`).
-- **Integration Matching**: Exposure integration windows are locked to integer multiples of full lighting cycles ($\approx 20\text{ ms}$ for $50\text{ Hz}$, $\approx 16.6\text{ ms}$ for $60\text{ Hz}$).
-- **Dynamic Calibration**: Runs a variance-minimization pass at startup across candidate exposure steps and re-evaluates ambient noise periodically using Exponential Moving Average (EMA) smoothing.
+### 1. Depth Flicker Suppressor (DepthFlickerSuppressor)
+Auto-exposure is disabled on the depth sensor. Exposure integration windows are matched to full lighting cycles (~20 ms for 50 Hz, ~16.6 ms for 60 Hz). At startup, exposure values are evaluated to minimize temporal variance, with an exponential moving average (EMA) smoothing updates over time.
 
 ### 2. Spectral Analysis Modules
-- **IR Noise Frequency Analysis (`frequency_analysis.py`)**: Collects a rolling temporal buffer of raw depth frame intensities, computes 1D Fast Fourier Transforms (FFT), and outputs power spectrum plots into `output/plots/ir_noise_final_*.png`.
-- **RGB Frequency Analysis (`frequency_analysis_rgb.py`)**: Runs channel-separated (Red, Green, Blue) temporal FFT to monitor ambient lighting stability and color-channel noise profiles.
+- frequency_analysis.py: Captures depth intensity sequences, applies 1D FFT, and outputs spectral plots to output/plots/.
+- frequency_analysis_rgb.py: Performs channel-separated (RGB) FFT to detect flicker in color feeds.
 
----
+## Web Telemetry and Performance Dashboard
 
-## 📊 Web Telemetry & Power Dashboard
+The web dashboard (dashboard.py) streams video feeds to http://localhost:5000 and reports performance data.
 
-The interactive Web Dashboard (`dashboard.py`) streams live camera feeds and real-time telemetry metrics to `http://localhost:5000`.
+Metrics tracked include:
+- Detections: Object count, average confidence, average distance in meters.
+- Power and Energy: Estimated CPU/GPU wattage, energy per frame (mJ), energy per object.
+- Latency Breakdown: Execution time in ms for capture, preprocessing, YOLO inference, tracking, and rendering.
+- System Stats: FPS, frame drop count, CPU usage, GPU usage, and RAM/VRAM usage.
 
-### Monitored Metrics & Telemetry Parameters:
+## Repository Structure
 
-| Category | Parameter | Description |
-| :--- | :--- | :--- |
-| **Detection** | `obj_count`, `avg_confidence`, `avg_depth_m` | Live count of detected personnel, mean bounding box confidence, and spatial depth distance in meters. |
-| **Power Profile** | `cpu_power_w`, `gpu_power_w`, `inst_power_w` | Real-time estimated system CPU and GPU wattage based on TDP utilization models (`psutil`, `GPUtil`). |
-| **Energy** | `frame_power_mj`, `pixel_power_uj`, `energy_per_object_mj` | Energy consumed per processed frame ($\text{mJ}$), micro-joules per pixel ($\mu\text{J}$), and energy required per detected object. |
-| **Pipeline Latency**| `capture_ms`, `preprocess_ms`, `yolo_ms`, `track_ms`, `render_ms` | Stage-by-stage execution latency profiling with dynamic bottleneck identification (`bottleneck_stage`). |
-| **Performance** | `fps`, `fps_stability_std`, `dropped_frames` | Real-time frame throughput, FPS standard deviation stability, and dropped frame counts. |
-| **Tracking** | `tracking_stability_pct` | Percentage ratio of sustained centroid tracking across frame sequences. |
+- main.py: RealSense viewer with aligned RGB and depth streams.
+- simple_depth_yolo.py: YOLOv8 object detection with depth estimation.
+- motion_depth.py: Depth-based motion detection and tracking script.
+- motion_rgb.py: RGB background subtraction and motion detection script.
+- frequency_analysis.py: FFT analysis script for IR depth sensor noise.
+- frequency_analysis_rgb.py: FFT analysis script for RGB light flicker.
+- dashboard.py: Flask web server for live feeds and telemetry monitoring.
+- csv_logger.py: Async background CSV logger for telemetry metrics.
+- profiler.py: Execution stage timer and performance breakdown helper.
+- requirements.txt: Python package dependencies.
+- yolov8n.pt: YOLOv8 nano model weights file.
+- .gitignore: Configuration for ignoring caches, venv, and large media.
+- templates/index.html: HTML dashboard template.
+- output/: Directory for generated plots, CSV logs, and video notes.
 
----
+## Setup and Installation
 
-## 📁 Repository Structure
+Prerequisites:
+- Intel RealSense D415 camera connected via USB 3.0
+- Python 3.8 to 3.11
+- Optional: NVIDIA GPU with CUDA support for YOLO acceleration
 
-```text
-personnel-detection/
-├── main.py                     # Primary RealSense dual-stream viewer (RGB + Aligned Depth)
-├── simple_depth_yolo.py        # YOLOv8 object detection with bounding-box spatial depth estimation
-├── motion_depth.py             # Depth-differencing motion tracker with flicker suppression & direction logic
-├── motion_rgb.py               # RGB Gaussian MOG2 background subtraction & motion tracker
-├── frequency_analysis.py       # IR sensor temporal FFT spectrum analysis & exposure flicker suppressor
-├── frequency_analysis_rgb.py   # RGB temporal channel-separated FFT analysis
-├── dashboard.py                # Flask web dashboard with live MJPEG stream & real-time telemetry
-├── csv_logger.py               # Multithreaded asynchronous CSV telemetry logger
-├── profiler.py                 # Pipeline latency profiler & execution stage breakdown timer
-├── requirements.txt            # Python dependencies (pyrealsense2, ultralytics, opencv, flask, etc.)
-├── yolov8n.pt                  # Pre-trained YOLOv8 Nano model weights
-├── .gitignore                  # Git ignore rules for virtualenvs, cache, and large video binaries
-├── templates/
-│   └── index.html              # HTML5/JS dashboard interface with dynamic telemetry charts
-└── output/                     # Generated telemetry data & outputs
-    ├── plots/                  # Hi-res FFT spectral analysis plots (.png)
-    ├── telemetry/              # Session-level CSV telemetry log files
-    └── video/                  # Video output documentation & README
-```
-
----
-
-## 🛠 Installation & Setup
-
-### Prerequisites
-- **Hardware**: Intel RealSense D415 Depth Camera (connected via USB 3.0+).
-- **OS**: Windows 10/11 or Linux.
-- **Python**: Python 3.8 to 3.11 recommended.
-- **CUDA (Optional)**: NVIDIA GPU with CUDA drivers for accelerated YOLOv8 inference.
-
-### Installation Steps
-
-1. **Clone the Repository**:
-   ```bash
+Steps:
+1. Clone the repository:
    git clone https://github.com/rishi-msrit/personnel-detection.git
    cd personnel-detection
-   ```
 
-2. **Create a Virtual Environment**:
-   ```bash
+2. Set up virtual environment:
    python -m venv .venv
-   # Windows:
    .venv\Scripts\activate
-   # Linux/macOS:
-   source .venv/bin/activate
-   ```
 
-3. **Install Dependencies**:
-   ```bash
+3. Install requirements:
    pip install -r requirements.txt
-   ```
 
----
+## Running the Components
 
-## 🚀 Execution & Usage Guide
+1. Web Dashboard:
+   python dashboard.py
+   Open http://localhost:5000 in a browser.
 
-### 1. Launch Interactive Web Dashboard
-Run the Flask telemetry server and open `http://localhost:5000` in your web browser:
-```bash
-python dashboard.py
-```
+2. RGB + Depth Stream Viewer:
+   python main.py
+   Press 'r' to toggle video recording, 's' to save snapshots, 'q' to exit.
 
-### 2. Run Basic Dual-Stream Viewer
-Visualize synchronized RGB and RealSense-colorized Depth streams:
-```bash
-python main.py
-```
-- **Controls**: Press `r` to toggle recording, `s` to save frame snapshots, `q` to quit.
+3. YOLO Detection with Distance Measurement:
+   python simple_depth_yolo.py
 
-### 3. Run YOLOv8 Depth Detection Pipeline
-Execute real-time personnel detection with distance estimation:
-```bash
-python simple_depth_yolo.py
-```
+4. Depth Motion Detection:
+   python motion_depth.py
+   Press 'b' to recalibrate background depth, 'q' to exit.
 
-### 4. Run Depth Motion Detection & Tracking
-Track spatial motion using depth differences (immune to ambient lighting changes):
-```bash
-python motion_depth.py
-```
-- **Controls**: Press `b` to re-capture background depth, `q` to quit.
+5. Frequency Analysis (Flicker Check):
+   python frequency_analysis.py
+   python frequency_analysis_rgb.py
 
-### 5. Run Spectral Frequency Analysis (FFT)
-Perform IR flicker diagnosis and output spectral graphs to `output/plots/`:
-```bash
-# IR Depth Flicker FFT Analysis:
-python frequency_analysis.py
+## Output Data
 
-# RGB Flicker FFT Analysis:
-python frequency_analysis_rgb.py
-```
+- Telemetry CSV files are saved in output/telemetry/ with timestamps.
+- Frequency analysis plots are saved as PNG images in output/plots/.
+- Recorded video details are described in output/video/README.md.
 
----
+## License
 
-## 📈 Data Output & Logging
-
-- **Telemetry Log CSVs**: Written to `output/telemetry/session_YYYYMMDD_HHMMSS.csv` containing 1-second interval system snapshots.
-- **FFT Spectral Plots**: Saved as high-resolution PNGs in `output/plots/` detailing frequency amplitudes up to Nyquist limits ($15\text{ Hz}$ for 30 FPS feeds).
-- **Video Recordings**: Documented in `output/video/README.md` (video binary files `.mp4`/`.avi` are excluded from Git repository tracking due to storage size limits).
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License.
+MIT
