@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RealSense Surveillance Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+:root{--bg:#0d0f14;--s1:#161a22;--s2:#1e2430;--bdr:#2a3040;--acc:#00d4ff;--acc2:#7c3aed;--grn:#00e676;--red:#ff5252;--ylw:#ffca28;--txt:#e8eaf0;--muted:#6b7280;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--txt);font-family:'Inter',system-ui;font-size:13px;min-height:100vh;display:flex;flex-direction:column;}
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:9px 18px;background:var(--s1);border-bottom:1px solid var(--bdr);flex-shrink:0;}
+h1{font-size:14px;font-weight:700;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.hrow{display:flex;align-items:center;gap:10px;}
+.mbtn{padding:5px 14px;border-radius:6px;border:1px solid var(--bdr);background:var(--s2);color:var(--muted);cursor:pointer;font-size:11px;font-weight:500;transition:all .2s;}
+.mbtn:hover{border-color:var(--acc);color:var(--acc);}
+.mbtn.active{background:var(--acc);color:#000;border-color:var(--acc);font-weight:700;}
+.stop-btn{padding:5px 14px;border-radius:6px;border:1px solid var(--red);background:rgba(255,82,82,.12);color:var(--red);cursor:pointer;font-size:11px;font-weight:600;}
+.stop-btn:hover{background:var(--red);color:#fff;}
+#pill{padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.5px;}
+.pc{background:rgba(0,230,118,.12);color:var(--grn);border:1px solid var(--grn);}
+.pm{background:rgba(255,82,82,.18);color:var(--red);border:1px solid var(--red);animation:pl .8s infinite;}
+@keyframes pl{0%,100%{box-shadow:0 0 0 0 rgba(255,82,82,.4)}50%{box-shadow:0 0 0 5px rgba(255,82,82,0)}}
+
+/* Main */
+.main{display:grid;grid-template-columns:1fr 330px;gap:10px;padding:10px;flex:1;min-height:0;}
+.vwrap{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--bdr);background:#000;display:flex;align-items:center;justify-content:center;}
+#liveimg{width:100%;height:100%;object-fit:contain;}
+.vbadge{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:5px;}
+.badge{background:rgba(0,0,0,.75);border:1px solid var(--bdr);border-radius:5px;padding:3px 9px;font-size:10px;font-weight:600;}
+.mtimer{position:absolute;bottom:8px;left:8px;background:rgba(255,82,82,.85);color:#fff;border-radius:5px;padding:3px 10px;font-size:11px;font-weight:700;display:none;}
+
+/* Sidebar */
+.sidebar{display:flex;flex-direction:column;gap:0;overflow:hidden;}
+.tabs{display:flex;border-bottom:1px solid var(--bdr);flex-shrink:0;}
+.tab{flex:1;padding:8px 4px;text-align:center;cursor:pointer;font-size:10px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;text-transform:uppercase;letter-spacing:.5px;}
+.tab.active{color:var(--acc);border-bottom-color:var(--acc);}
+.tab-content{display:none;flex-direction:column;gap:8px;overflow-y:auto;padding:10px 2px;flex:1;}
+.tab-content.active{display:flex;}
+.card{background:var(--s1);border:1px solid var(--bdr);border-radius:9px;padding:11px;}
+.ct{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:9px;display:flex;align-items:center;gap:5px;}
+.ct::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--acc);display:inline-block;}
+.sr{display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;}
+.sl{color:var(--muted)}.sv{font-weight:600;color:var(--acc);}
+.bn{font-size:28px;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;}
+.bl{font-size:9px;color:var(--muted);margin-top:1px;}
+.cw{height:70px;position:relative;}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.si{background:var(--s2);border-radius:7px;padding:7px;text-align:center;}
+.sn{font-size:18px;font-weight:700;color:var(--acc);}
+.sl2{font-size:8px;color:var(--muted);margin-top:1px;}
+/* stage bars */
+.strow{display:flex;align-items:center;gap:7px;margin-bottom:5px;}
+.stn{width:68px;font-size:9px;color:var(--muted);}
+.stbw{flex:1;height:5px;background:var(--s2);border-radius:3px;overflow:hidden;}
+.stb{height:100%;border-radius:3px;transition:width .4s;}
+.stv{width:38px;text-align:right;font-size:9px;color:var(--txt);}
+.hl{color:var(--red)!important;}
+/* log */
+.lsec{padding:0 10px 10px;flex-shrink:0;}
+.lhdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;}
+.lhdr h2{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+.lacts{display:flex;gap:5px;}
+.bsm{padding:3px 10px;border-radius:5px;background:var(--s2);border:1px solid var(--bdr);color:var(--acc);cursor:pointer;font-size:10px;}
+.bsm:hover{background:var(--acc);color:#000;}
+.bcl{color:var(--red);border-color:var(--red);}.bcl:hover{background:var(--red);color:#fff;}
+.twrap{max-height:180px;overflow-y:auto;border:1px solid var(--bdr);border-radius:7px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+thead th{background:var(--s2);padding:6px 9px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;position:sticky;top:0;}
+tbody tr{border-bottom:1px solid var(--bdr);}
+tbody tr:hover{background:var(--s2);}
+tbody td{padding:5px 9px;font-size:10px;}
+.tt{color:var(--acc);font-weight:600;font-family:monospace;}
+.td{color:var(--ylw);}
+.mc{padding:1px 6px;border-radius:3px;font-size:8px;font-weight:700;}
+.mr{background:rgba(0,212,255,.12);color:var(--acc);}
+.md{background:rgba(124,58,237,.12);color:var(--acc2);}
+.ne{text-align:center;color:var(--muted);padding:16px;font-size:10px;}
+::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px;}
+/* Y-scale control overlay */
+.yscl{position:absolute;top:2px;right:2px;display:flex;align-items:center;gap:3px;z-index:10;opacity:1;}
+.yscl-val{font-size:8px;font-weight:700;color:var(--muted);background:var(--s2);border:1px solid var(--bdr);border-radius:4px;padding:1px 5px;cursor:pointer;font-family:monospace;transition:all .15s;white-space:nowrap;}
+.yscl-val:hover{color:var(--acc);border-color:var(--acc);}
+.yscl-val.pinned{color:var(--ylw);border-color:var(--ylw);}
+.yscl-sep{font-size:8px;color:var(--muted);user-select:none;}
+.yscl-inp{width:38px;font-size:8px;font-weight:700;color:var(--ylw);background:var(--s2);border:1px solid var(--ylw);border-radius:4px;padding:1px 4px;font-family:monospace;outline:none;display:none;}
+.yscl-inp.open{display:block;}
+.yscl-btn{font-size:9px;background:none;border:none;cursor:pointer;color:var(--muted);padding:0 1px;line-height:1;transition:color .15s;}
+.yscl-btn:hover{color:var(--acc);}
+.yscl-btn.pinned{color:var(--ylw);}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ RealSense Surveillance</h1>
+  <div class="hrow">
+    <button class="mbtn active" id="brgb" onclick="setMode('rgb')">RGB</button>
+    <button class="mbtn" id="bdep" onclick="setMode('depth')">Depth</button>
+    <button class="stop-btn" onclick="stopSys()">■ Stop</button>
+    <span id="pill" class="pc">CLEAR</span>
+  </div>
+</header>
+
+<div class="main">
+  <div class="vwrap">
+    <img id="liveimg" src="/video" alt="Feed">
+    <div class="vbadge">
+      <div class="badge" id="fpsbdg">FPS: --</div>
+      <div class="badge" id="modbdg">RGB</div>
+      <div class="badge" id="objbdg">Obj: 0</div>
+    </div>
+    <div class="mtimer" id="mtimer">⚠ Motion: 0s</div>
+  </div>
+
+  <div class="sidebar">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('live')">📺 Live</div>
+      <div class="tab" onclick="switchTab('power')">⚡ Power</div>
+      <div class="tab" onclick="switchTab('analytics')">📊 Analytics</div>
+    </div>
+
+    <!-- LIVE TAB -->
+    <div id="tab-live" class="tab-content active">
+      <div class="card">
+        <div class="ct">Performance</div>
+        <div style="display:flex;gap:20px;align-items:flex-end;margin-bottom:9px">
+          <div><div class="bn" id="fpsn">--</div><div class="bl">FPS</div></div>
+          <div><div class="bn" id="ftn" style="font-size:19px">--</div><div class="bl">ms/frame</div></div>
+        </div>
+        <div class="cw"><div class="yscl" id="ys-fpsChart"><span class="yscl-val" id="ysv-mn-fpsChart" title="Set min">--</span><input class="yscl-inp" id="ysi-mn-fpsChart" type="number" step="any"><span class="yscl-sep">–</span><span class="yscl-val" id="ysv-mx-fpsChart" title="Set max">--</span><input class="yscl-inp" id="ysi-mx-fpsChart" type="number" step="any"><button class="yscl-btn" id="ysb-fpsChart" title="Reset both to auto">↺</button></div><canvas id="fpsChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Resources</div>
+        <div class="sr"><span class="sl">CPU</span><span class="sv" id="cpup">--%</span></div>
+        <div class="sr"><span class="sl">GPU Util</span><span class="sv" id="gpup">--%</span></div>
+        <div class="sr"><span class="sl">RAM</span><span class="sv" id="ramv">-- MB</span></div>
+        <div class="sr"><span class="sl">GPU VRAM</span><span class="sv" id="gpumv">-- MB</span></div>
+        <div class="cw"><div class="yscl" id="ys-resChart"><span class="yscl-val" id="ysv-mn-resChart" title="Set min">--</span><input class="yscl-inp" id="ysi-mn-resChart" type="number" step="any"><span class="yscl-sep">–</span><span class="yscl-val" id="ysv-mx-resChart" title="Set max">--</span><input class="yscl-inp" id="ysi-mx-resChart" type="number" step="any"><button class="yscl-btn" id="ysb-resChart" title="Reset both to auto">↺</button></div><canvas id="resChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Session</div>
+        <div class="sg">
+          <div class="si"><div class="sn" id="stot">0</div><div class="sl2">Events</div></div>
+          <div class="si"><div class="sn" id="supt">0m</div><div class="sl2">Uptime</div></div>
+          <div class="si"><div class="sn" id="smot">--</div><div class="sl2">Motion Dur</div></div>
+          <div class="si"><div class="sn" id="sobj">--</div><div class="sl2">Top Object</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- POWER TAB -->
+    <div id="tab-power" class="tab-content">
+      <div class="card">
+        <div class="ct">Instantaneous Power</div>
+        <div class="sr"><span class="sl">CPU Power</span><span class="sv" id="cpuw">-- W</span></div>
+        <div class="sr"><span class="sl">GPU Power</span><span class="sv" id="gpuw">-- W</span></div>
+        <div class="sr"><span class="sl" style="font-weight:700">Total Inst.</span><span class="sv" id="totw" style="font-size:15px;color:var(--ylw)">-- W</span></div>
+        <div class="cw"><div class="yscl" id="ys-powChart"><span class="yscl-val" id="ysv-mn-powChart" title="Set min">--</span><input class="yscl-inp" id="ysi-mn-powChart" type="number" step="any"><span class="yscl-sep">–</span><span class="yscl-val" id="ysv-mx-powChart" title="Set max">--</span><input class="yscl-inp" id="ysi-mx-powChart" type="number" step="any"><button class="yscl-btn" id="ysb-powChart" title="Reset both to auto">↺</button></div><canvas id="powChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Frame & Pixel Energy</div>
+        <div class="sr"><span class="sl">Per Frame</span><span class="sv" id="frme">-- mJ</span></div>
+        <div class="sr"><span class="sl">Per Pixel</span><span class="sv" id="pixe">-- µJ</span></div>
+        <div class="sr"><span class="sl">Per Object</span><span class="sv" id="obje">-- mJ</span></div>
+      </div>
+      <div class="card">
+        <div class="ct">Session Energy Budget</div>
+        <div class="sr"><span class="sl">Total Used</span><span class="sv" id="totwh">-- Wh</span></div>
+        <div class="sr"><span class="sl">Peak Power</span><span class="sv" id="pkw">-- W</span></div>
+        <div class="sr"><span class="sl">Avg (60s)</span><span class="sv" id="avgw">-- W</span></div>
+        <div class="cw"><div class="yscl" id="ys-enChart"><span class="yscl-val" id="ysv-mn-enChart" title="Set min">--</span><input class="yscl-inp" id="ysi-mn-enChart" type="number" step="any"><span class="yscl-sep">–</span><span class="yscl-val" id="ysv-mx-enChart" title="Set max">--</span><input class="yscl-inp" id="ysi-mx-enChart" type="number" step="any"><button class="yscl-btn" id="ysb-enChart" title="Reset both to auto">↺</button></div><canvas id="enChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Efficiency Metrics</div>
+        <div class="sr"><span class="sl">FPS / Watt</span><span class="sv" id="fpw">--</span></div>
+        <div class="sr"><span class="sl">Objects / Joule</span><span class="sv" id="opj">--</span></div>
+        <div class="sr"><span class="sl">YOLO Efficiency</span><span class="sv" id="yef">-- obj/ms</span></div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS TAB -->
+    <div id="tab-analytics" class="tab-content">
+      <div class="card">
+        <div class="ct">Pipeline Latency</div>
+        <div id="stages"></div>
+        <div class="sr" style="margin-top:6px"><span class="sl">Bottleneck</span><span class="sv hl" id="bttlnk">—</span></div>
+      </div>
+      <div class="card">
+        <div class="ct">FPS Stability</div>
+        <div class="sr"><span class="sl">Std Dev</span><span class="sv" id="fpstd">--</span></div>
+        <div class="sr"><span class="sl">Dropped Frames</span><span class="sv" id="drpf">0</span></div>
+        <div class="sr"><span class="sl">Throughput</span><span class="sv" id="thrp">-- fr/min</span></div>
+        <div class="cw"><div class="yscl" id="ys-fpsstdChart"><span class="yscl-val" id="ysv-mn-fpsstdChart" title="Set min">--</span><input class="yscl-inp" id="ysi-mn-fpsstdChart" type="number" step="any"><span class="yscl-sep">–</span><span class="yscl-val" id="ysv-mx-fpsstdChart" title="Set max">--</span><input class="yscl-inp" id="ysi-mx-fpsstdChart" type="number" step="any"><button class="yscl-btn" id="ysb-fpsstdChart" title="Reset both to auto">↺</button></div><canvas id="fpsstdChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="ct">Detection Quality</div>
+        <div class="sr"><span class="sl">Avg Confidence</span><span class="sv" id="avgconf">--</span></div>
+        <div class="sr"><span class="sl">Track Stability</span><span class="sv" id="trksb">100%</span></div>
+        <div class="sr"><span class="sl">Avg Depth</span><span class="sv" id="avgdep">-- m</span></div>
+        <div class="cw"><div class="yscl" id="ys-confChart"><span class="yscl-val" id="ysv-mn-confChart" title="Set min">--</span><input class="yscl-inp" id="ysi-mn-confChart" type="number" step="any"><span class="yscl-sep">–</span><span class="yscl-val" id="ysv-mx-confChart" title="Set max">--</span><input class="yscl-inp" id="ysi-mx-confChart" type="number" step="any"><button class="yscl-btn" id="ysb-confChart" title="Reset both to auto">↺</button></div><canvas id="confChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detection log -->
+<div class="lsec">
+  <div class="lhdr">
+    <h2>📋 Detection Log</h2>
+    <div class="lacts">
+      <button class="bsm" onclick="exportCSV()">Export CSV</button>
+      <button class="bsm bcl" onclick="clearLog()">Clear</button>
+    </div>
+  </div>
+  <div class="twrap">
+    <table>
+      <thead><tr><th>Time</th><th>Object</th><th>Direction</th><th>Conf</th><th>Mode</th></tr></thead>
+      <tbody id="logbody"><tr><td colspan="5" class="ne">Waiting for detections…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const N=60;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  CHART BOUNDS — edit these to pin any chart's Y-axis        ║
+// ║  Set min and/or max for a chart. Leave a chart out (or set  ║
+// ║  null) to keep full auto-scaling for that chart.            ║
+// ╚══════════════════════════════════════════════════════════════╝
+const CHART_BOUNDS = {
+  // powChart:    { min: 20,  max: 50  },  // Instantaneous Power (W)
+  // fpsChart:    { min: 0,   max: 30  },  // FPS
+  // resChart:    { min: 100, max: 600 },  // RAM (MB)
+  // enChart:     { min: 0,   max: 100 },  // Session Energy (mWh)
+  // fpsstdChart: { min: 0,   max: 5   },  // FPS Std Dev
+  // confChart:   { min: 50,  max: 100 },  // Confidence (%)
+};
+
+// Per-chart manual scale overrides from the hover UI (null = auto)
+const manualScales={};
+// Map chartId -> Chart instance (populated after creation)
+const chartMap={};
+
+function mkChart(id,color){
+  const ctx=document.getElementById(id)?.getContext('2d');
+  if(!ctx)return null;
+  return new Chart(ctx,{type:'line',data:{labels:Array(N).fill(''),datasets:[{data:Array(N).fill(null),borderColor:color,borderWidth:1.5,pointRadius:0,tension:0.4,fill:true,backgroundColor:color+'18'}]},options:{animation:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:true,ticks:{color:'#6b7280',font:{size:8},maxTicksLimit:4},grid:{color:'#2a3040'}}},responsive:true,maintainAspectRatio:false}});
+}
+function push(chart,v){if(!chart)return;const d=chart.data.datasets[0].data;d.push(v);if(d.length>N)d.shift();chart.update('none');}
+
+// ── Y-axis auto / manual scaling ─────────────────────────────────────────────
+// Pick a step size that gives readable tick labels for a given range
+function niceStep(range){
+  if(range<=2)return .5;
+  if(range<=5)return 1;
+  if(range<=10)return 2;
+  if(range<=25)return 5;
+  if(range<=50)return 10;
+  if(range<=100)return 20;
+  if(range<=250)return 50;
+  if(range<=500)return 100;
+  return 250;
+}
+// Compute tight {min,max} bounds around the data, snapped to a nice step
+function niceBounds(vals,pad){
+  if(!vals.length)return{min:0,max:10};
+  const lo=Math.min(...vals),hi=Math.max(...vals);
+  const range=Math.max(hi-lo,0.5); // avoid zero-range collapse
+  const p=range*(pad!=null?pad:0.15); // 15% padding on each side
+  const step=niceStep(range+2*p);
+  const nMin=Math.max(0,Math.floor((lo-p)/step)*step);
+  const nMax=Math.ceil((hi+p)/step)*step;
+  return{min:nMin,max:Math.max(nMax,nMin+step)};
+}
+function autoScaleY(chart,chartId,pad){
+  if(!chart)return;
+  const y=chart.options.scales.y;
+  // Compute auto bounds from live data window
+  const vals=chart.data.datasets[0].data.filter(v=>v!=null&&!isNaN(v));
+  if(!vals.length)return;
+  const b=niceBounds(vals,pad);
+  // Priority: CHART_BOUNDS > manualScales > auto (per bound independently)
+  const cb=CHART_BOUNDS[chartId]||{};
+  const ms=manualScales[chartId]||{};
+  const newMin = cb.min!=null ? cb.min : (ms.min!=null ? ms.min : b.min);
+  const newMax = cb.max!=null ? cb.max : (ms.max!=null ? ms.max : b.max);
+  if(y.min!==newMin||Math.abs((y.max||0)-newMax)>0.5){
+    y.min=newMin;y.max=newMax;
+    chart.update('none');
+  }
+  // Update pill labels for whichever bound is NOT manually pinned
+  const mnEl=document.getElementById('ysv-mn-'+chartId);
+  const mxEl=document.getElementById('ysv-mx-'+chartId);
+  if(mnEl&&!mnEl.classList.contains('pinned'))mnEl.textContent=newMin;
+  if(mxEl&&!mxEl.classList.contains('pinned'))mxEl.textContent=newMax;
+}
+
+// ── Scale control UI helpers ──────────────────────────────────────────────────
+function initScaleControls(){
+  Object.keys(chartMap).forEach(id=>{
+    const mnVal=document.getElementById('ysv-mn-'+id);
+    const mxVal=document.getElementById('ysv-mx-'+id);
+    const mnInp=document.getElementById('ysi-mn-'+id);
+    const mxInp=document.getElementById('ysi-mx-'+id);
+    const btn  =document.getElementById('ysb-'+id);
+    if(!mnVal||!mxVal||!mnInp||!mxInp||!btn)return;
+    if(!manualScales[id])manualScales[id]={};
+
+    function openInp(inpEl,valEl,curVal){
+      inpEl.value=curVal!=null?curVal:'';
+      inpEl.classList.add('open');
+      valEl.style.display='none';
+      inpEl.focus();inpEl.select();
+    }
+    function commitInp(inpEl,valEl,type){
+      const v=parseFloat(inpEl.value);
+      inpEl.classList.remove('open');
+      valEl.style.display='';
+      if(!isNaN(v)){
+        manualScales[id][type]=v;
+        valEl.textContent=v;
+        valEl.classList.add('pinned');
+        btn.classList.add('pinned');
+        const c=chartMap[id];
+        if(c){c.options.scales.y[type]=v;c.update('none');}
+      }
+    }
+    // Wire min
+    mnVal.addEventListener('click',()=>openInp(mnInp,mnVal,manualScales[id].min??chartMap[id]?.options?.scales?.y?.min));
+    mnInp.addEventListener('blur',()=>commitInp(mnInp,mnVal,'min'));
+    mnInp.addEventListener('keydown',e=>{if(e.key==='Enter')mnInp.blur();if(e.key==='Escape'){mnInp.classList.remove('open');mnVal.style.display='';}});
+    // Wire max
+    mxVal.addEventListener('click',()=>openInp(mxInp,mxVal,manualScales[id].max??chartMap[id]?.options?.scales?.y?.max));
+    mxInp.addEventListener('blur',()=>commitInp(mxInp,mxVal,'max'));
+    mxInp.addEventListener('keydown',e=>{if(e.key==='Enter')mxInp.blur();if(e.key==='Escape'){mxInp.classList.remove('open');mxVal.style.display='';}});
+    // ↺ resets both
+    btn.addEventListener('click',()=>{
+      manualScales[id]={};
+      mnVal.textContent='--';mxVal.textContent='--';
+      mnVal.classList.remove('pinned');mxVal.classList.remove('pinned');
+      btn.classList.remove('pinned');
+    });
+  });
+}
+
+const fpsChart=mkChart('fpsChart','#00d4ff');
+const resChart=mkChart('resChart','#7c3aed');
+const powChart=mkChart('powChart','#ffca28');
+const enChart=mkChart('enChart','#ff5252');
+const fpsstdChart=mkChart('fpsstdChart','#00e676');
+const confChart=mkChart('confChart','#00d4ff');
+
+// Populate map and wire up controls after all charts exist
+Object.assign(chartMap,{fpsChart,resChart,powChart,enChart,fpsstdChart,confChart});
+initScaleControls();
+
+const STAGES=['capture','preprocess','yolo','track','render'];
+const SCOLS={capture:'#00d4ff',preprocess:'#7c3aed',yolo:'#ff5252',track:'#00e676',render:'#ffca28'};
+(function(){
+  const c=document.getElementById('stages');
+  if(!c)return;
+  STAGES.forEach(s=>{c.innerHTML+=`<div class="strow"><div class="stn">${s}</div><div class="stbw"><div class="stb" id="sb-${s}" style="width:0%;background:${SCOLS[s]}"></div></div><div class="stv" id="sv-${s}">0ms</div></div>`;});
+})();
+
+let allEvents=[],objCounts={},sessionStart=Date.now(),motionStart=null,wasMotion=false;
+let powerBuf=[];
+let soundOn=false;
+
+const sse=new EventSource('/stats');
+sse.onmessage=(e)=>{
+  const d=JSON.parse(e.data);
+  // Stopped?
+  if(!d.running){document.body.innerHTML='<div style="text-align:center;padding:80px;color:#ff5252;font-size:24px;font-family:Inter,system-ui">⬛ System Stopped<br><small style="font-size:14px;color:#6b7280;margin-top:10px;display:block">Close this tab or restart dashboard.py</small></div>';sse.close();return;}
+
+  // Pill
+  const pill=document.getElementById('pill');
+  if(d.motion){
+    pill.textContent='MOTION';pill.className='pm';
+    if(!wasMotion){motionStart=Date.now();}
+    wasMotion=true;
+    const sec=((Date.now()-motionStart)/1000).toFixed(0);
+    const mt=document.getElementById('mtimer');mt.style.display='block';mt.textContent=`⚠ Motion: ${sec}s`;
+    document.getElementById('smot').textContent=sec+'s';
+  } else {
+    pill.textContent='CLEAR';pill.className='pc';wasMotion=false;motionStart=null;
+    const mt=document.getElementById('mtimer');if(mt)mt.style.display='none';
+    document.getElementById('smot').textContent='--';
+  }
+
+  // Live tab
+  const fps=d.fps||0;
+  document.getElementById('fpsbdg').textContent=`FPS: ${fps.toFixed(1)}`;
+  document.getElementById('modbdg').textContent=(d.mode||'rgb').toUpperCase();
+  document.getElementById('objbdg').textContent=`Obj: ${d.obj_count||0}`;
+  document.getElementById('fpsn').textContent=fps.toFixed(1);
+  document.getElementById('ftn').textContent=(d.frame_time_ms||0).toFixed(1);
+  document.getElementById('cpup').textContent=(d.cpu_pct||0).toFixed(1)+'%';
+  document.getElementById('gpup').textContent=(d.gpu_pct||0).toFixed(1)+'%';
+  document.getElementById('ramv').textContent=(d.ram_mb||0).toFixed(0)+' MB';
+  document.getElementById('gpumv').textContent=(d.gpu_mb||0).toFixed(0)+' MB';
+  push(fpsChart,fps); autoScaleY(fpsChart,'fpsChart',1.3);
+  push(resChart,d.ram_mb||0); autoScaleY(resChart,'resChart',1.2);
+
+  // Session
+  document.getElementById('supt').textContent=Math.floor((Date.now()-sessionStart)/60000)+'m';
+  document.getElementById('stot').textContent=allEvents.length;
+  const top=Object.entries(objCounts).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('sobj').textContent=top?top[0]:'--';
+
+  // Power tab
+  document.getElementById('cpuw').textContent=(d.cpu_power_w||0).toFixed(1)+' W';
+  document.getElementById('gpuw').textContent=(d.gpu_power_w||0).toFixed(1)+' W';
+  document.getElementById('totw').textContent=(d.inst_power_w||0).toFixed(1)+' W';
+  document.getElementById('frme').textContent=(d.frame_power_mj||0).toFixed(3)+' mJ';
+  document.getElementById('pixe').textContent=(d.pixel_power_uj||0).toFixed(4)+' µJ';
+  document.getElementById('obje').textContent=(d.energy_per_object_mj||0).toFixed(3)+' mJ';
+  document.getElementById('totwh').textContent=(d.total_energy_wh||0).toFixed(5)+' Wh';
+  document.getElementById('pkw').textContent=(d.peak_power_w||0).toFixed(2)+' W';
+  powerBuf.push(d.inst_power_w||0);if(powerBuf.length>60)powerBuf.shift();
+  const avgp=powerBuf.reduce((a,b)=>a+b,0)/Math.max(powerBuf.length,1);
+  document.getElementById('avgw').textContent=avgp.toFixed(2)+' W';
+  document.getElementById('fpw').textContent=(d.fps_per_watt||0).toFixed(2);
+  document.getElementById('opj').textContent=(d.objects_per_joule||0).toFixed(1);
+  document.getElementById('yef').textContent=(d.yolo_efficiency||0).toFixed(3)+' obj/ms';
+  push(powChart,d.inst_power_w||0);
+  autoScaleY(powChart,'powChart',1.25);
+  push(enChart,d.total_energy_wh?d.total_energy_wh*1000:0);
+  autoScaleY(enChart,'enChart',1.3);
+
+  // Analytics tab
+  const stg=d.stages||{};const mx=Math.max(...Object.values(stg),1);
+  STAGES.forEach(s=>{
+    const v=stg[s]||0;
+    const sb=document.getElementById('sb-'+s);if(sb)sb.style.width=(v/mx*100)+'%';
+    const sv=document.getElementById('sv-'+s);if(sv)sv.textContent=v.toFixed(1)+'ms';
+  });
+  const bk=document.getElementById('bttlnk');if(bk){bk.textContent=d.bottleneck||'—';}
+  document.getElementById('fpstd').textContent=(d.fps_stability_std||0).toFixed(2);
+  document.getElementById('drpf').textContent=d.dropped_frames||0;
+  document.getElementById('thrp').textContent=((fps||0)*60).toFixed(0)+' fr/min';
+  document.getElementById('avgconf').textContent=((d.avg_confidence||0)*100).toFixed(1)+'%';
+  document.getElementById('trksb').textContent=(d.tracking_stability_pct||100).toFixed(1)+'%';
+  document.getElementById('avgdep').textContent=d.avg_depth_m?d.avg_depth_m.toFixed(2)+' m':'-- m';
+  push(fpsstdChart,d.fps_stability_std||0); autoScaleY(fpsstdChart,'fpsstdChart',1.3);
+  push(confChart,(d.avg_confidence||0)*100); autoScaleY(confChart,'confChart',1.2);
+
+  // Events
+  if(d.new_events&&d.new_events.length){
+    d.new_events.forEach(ev=>{allEvents.unshift(ev);objCounts[ev.object]=(objCounts[ev.object]||0)+1;});
+    renderLog();
+  }
+};
+
+function renderLog(){
+  const tb=document.getElementById('logbody');
+  if(!allEvents.length){tb.innerHTML='<tr><td colspan="5" class="ne">No detections yet.</td></tr>';return;}
+  tb.innerHTML=allEvents.slice(0,200).map(ev=>`<tr><td class="tt">${ev.ts}</td><td>${ev.object}</td><td class="td">${ev.direction||'—'}</td><td>${(ev.conf*100).toFixed(0)}%</td><td><span class="mc ${ev.mode==='rgb'?'mr':'md'}">${ev.mode.toUpperCase()}</span></td></tr>`).join('');
+}
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{const n=['live','power','analytics'][i];t.classList.toggle('active',n===name);});
+  document.querySelectorAll('.tab-content').forEach(tc=>{tc.classList.remove('active');});
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function setMode(m){
+  fetch('/set_mode/'+m);
+  document.getElementById('brgb').classList.toggle('active',m==='rgb');
+  document.getElementById('bdep').classList.toggle('active',m==='depth');
+  document.getElementById('liveimg').src='/video?'+Date.now();
+}
+
+function stopSys(){if(confirm('Stop the surveillance system?')){fetch('/shutdown');}}
+
+function exportCSV(){
+  if(!allEvents.length){alert('No events.');return;}
+  const rows=[['Time','Object','Direction','Confidence','Mode']];
+  allEvents.forEach(ev=>rows.push([ev.ts,ev.object,ev.direction||'',ev.conf,ev.mode]));
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(rows.map(r=>r.join(',')).join('\n'));
+  a.download='detections_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
+function clearLog(){allEvents=[];objCounts={};document.getElementById('stot').textContent='0';renderLog();}
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Exclude large video binary recordings in output directory
+output/video/*.mp4
+output/video/*.avi
+output/video/*.mkv
+output/frames/
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
